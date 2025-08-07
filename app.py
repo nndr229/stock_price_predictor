@@ -112,7 +112,7 @@ def chat():
     question = data.get("question", "")
     messages = [
         ("system",
-         f"You are a financial stock analyst that has knowledge about {symbol} . You just recommended '{recommendation}'."),
+         f"You are a financial stock analyst that has knowledge about {symbol} . You just recommended based on summy data : '{recommendation}'."),
         ("human", question)
     ]
     resp = llm.invoke(messages)
