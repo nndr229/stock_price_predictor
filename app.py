@@ -24,7 +24,7 @@ alpaca = tradeapi.REST(ALPACA_KEY, ALPACA_SECRET,
                        APCA_API_BASE, api_version='v2')
 
 # — Gemini LLM setup —
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0.2)
 
 
 def rate_limit(endpoint: str, max_calls: int = 2, period: int = 60) -> bool:
