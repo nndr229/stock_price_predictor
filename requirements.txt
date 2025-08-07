@@ -4,4 +4,4 @@ alpaca-trade-api
 langchain
 langchain-google-genai
 google-generativeai
-gunicorn==19.7.1
+gunicorn
