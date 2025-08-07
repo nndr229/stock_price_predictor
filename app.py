@@ -24,7 +24,7 @@ alpaca = tradeapi.REST(ALPACA_KEY, ALPACA_SECRET,
                        APCA_API_BASE, api_version='v2')
 
 # — Gemini LLM setup —
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
 
 
 def rate_limit(endpoint: str, max_calls: int = 2, period: int = 60) -> bool:
@@ -82,10 +82,16 @@ def predict():
 
     symbol = request.json.get("symbol", "AAPL").upper()
     prompt = (
-        f"You are the world’s foremost quantitative market forecaster. "
-        # ...
+        f"You are a senior financial  market forecaster who works on a dummy dataset. "
+        f"Use fetch_stock_data to get the last 100 days of '{symbol}' closing prices. "
+        f"Based on cutting-edge statistical and ML methods, predict the next 5 trading days' closing prices. "
+        f"Respond in JSON with:\n"
+        f"  predictions: [{{date: 'YYYY-MM-DD', predicted_close: float}}, ...],\n"
+        f"  recommendation: one of 'Buy', 'Hold', or 'Sell'\n"
+        f"Do not use the word json in the output.'\n"
     )
     raw_output = agent.run(input=prompt)
+    print(raw_output)
     try:
         result = json.loads(raw_output)
     except:

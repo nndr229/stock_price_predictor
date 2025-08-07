@@ -1,23 +1,65 @@
-let predChart, liveChart;
+// static/js/app.js
+
+// ---------- Loading Modal Helpers ----------
+function showLoading() {
+  document.getElementById('loadingModal').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loadingModal').classList.add('hidden');
+}
+
+// ---------- Rate-Limit Fetch Wrapper ----------
+async function postWithRateCheck(path, body) {
+  showLoading();
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429) {
+      const err = await res.json();
+      alert(err.error);
+      return null;
+    }
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Server error');
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error(e);
+    alert('Network error');
+    return null;
+  } finally {
+    hideLoading();
+  }
+}
+
+// ---------- State ----------
+let predChart = null;
+let liveChart = null;
 let liveData = { labels: [], data: [] };
 let chatHistory = [];
 
-document.getElementById('predictBtn').onclick = async () => {
-  const symbol = document.getElementById('symbolSelect').value;
-  const res = await fetch('/predict', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol }),
-  });
-  const { predictions, recommendation } = await res.json();
+// ---------- PREDICT Button Handler ----------
+document.getElementById('predictBtn').addEventListener('click', async () => {
+  const symbol = document
+    .getElementById('symbolSelect')
+    .value.trim()
+    .toUpperCase();
+  const data = await postWithRateCheck('/predict', { symbol });
+  if (!data) return;
 
-  // Build historical+forecast chart
-  const labels = predictions.map((p) => p.date);
-  const data = predictions.map((p) => p.predicted_close);
+  const { predictions, recommendation } = data;
   document.getElementById(
     'recText'
   ).textContent = `Recommendation: ${recommendation}`;
 
+  // Prepare and render prediction chart
+  const labels = predictions.map((p) => p.date);
+  const values = predictions.map((p) => p.predicted_close);
   const ctx = document.getElementById('predChart').getContext('2d');
   if (predChart) predChart.destroy();
   predChart = new Chart(ctx, {
@@ -27,7 +69,7 @@ document.getElementById('predictBtn').onclick = async () => {
       datasets: [
         {
           label: `${symbol} Forecast`,
-          data,
+          data: values,
           tension: 0.3,
           borderWidth: 2,
         },
@@ -36,31 +78,37 @@ document.getElementById('predictBtn').onclick = async () => {
     options: {
       scales: {
         x: { title: { display: true, text: 'Date' } },
-        y: { title: { display: true, text: 'Price' } },
+        y: { title: { display: true, text: 'Price (USD)' } },
       },
     },
   });
 
-  // Reset live chart data
+  // Reset live price data
   liveData = { labels: [], data: [] };
-};
+});
 
+// ---------- LIVE PRICE Streaming ----------
 async function fetchLive(symbol) {
   const res = await fetch(`/live_price?symbol=${symbol}`);
+  if (!res.ok) return null;
   return res.json();
 }
 
 async function updateLiveChart() {
-  const symbol = document.getElementById('symbolSelect').value;
-  const { price, timestamp } = await fetchLive(symbol);
+  const symbol = document
+    .getElementById('symbolSelect')
+    .value.trim()
+    .toUpperCase();
+  const live = await fetchLive(symbol);
+  if (!live) return;
 
+  const { price, timestamp } = live;
   liveData.labels.push(timestamp);
   liveData.data.push(price);
   if (liveData.labels.length > 30) {
     liveData.labels.shift();
     liveData.data.shift();
   }
-
   document.getElementById('livePriceText').textContent = `${symbol}: $${price}`;
 
   const ctx = document.getElementById('liveChart').getContext('2d');
@@ -81,48 +129,56 @@ async function updateLiveChart() {
     options: {
       scales: {
         x: { display: false },
-        y: { title: { display: true, text: 'Price' } },
+        y: { title: { display: true, text: 'Price (USD)' } },
       },
     },
   });
 }
 
-// Update live price every 10 seconds
+// poll every 10 seconds
 setInterval(updateLiveChart, 10000);
 
-// Chat
-document.getElementById('sendChat').onclick = async () => {
-  const symbol = document.getElementById('symbolSelect').value;
+// ---------- CHAT Interface ----------
+document.getElementById('sendChat').addEventListener('click', async () => {
+  const symbol = document
+    .getElementById('symbolSelect')
+    .value.trim()
+    .toUpperCase();
   const recommendation =
     document.getElementById('recText').textContent.split(': ')[1] || '';
-  const question = document.getElementById('chatInput').value;
+  const questionInput = document.getElementById('chatInput');
+  const question = questionInput.value.trim();
   if (!question) return;
-  document.getElementById('chatInput').value = '';
 
-  // Append user message
+  // append user message
   chatHistory.push({ from: 'you', text: question });
   renderChat();
+  questionInput.value = '';
 
-  const res = await fetch('/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol, recommendation, question }),
+  const data = await postWithRateCheck('/chat', {
+    symbol,
+    recommendation,
+    question,
   });
-  const { reply } = await res.json();
-  chatHistory.push({ from: 'stock', text: reply });
-  renderChat();
-};
+  if (!data) return;
 
+  chatHistory.push({ from: 'stock', text: data.reply });
+  renderChat();
+});
+
+// ---------- Chat Rendering ----------
 function renderChat() {
   const win = document.getElementById('chatWindow');
   win.innerHTML = '';
   chatHistory.forEach((msg) => {
     const div = document.createElement('div');
-    div.className =
-      msg.from === 'you'
-        ? 'text-right text-blue-600'
-        : 'text-left text-gray-800';
-    div.textContent = (msg.from === 'you' ? 'You: ' : 'Stock: ') + msg.text;
+    if (msg.from === 'you') {
+      div.className = 'text-right text-blue-600';
+      div.textContent = `You: ${msg.text}`;
+    } else {
+      div.className = 'text-left text-gray-800';
+      div.textContent = `Stock: ${msg.text}`;
+    }
     win.appendChild(div);
   });
   win.scrollTop = win.scrollHeight;
