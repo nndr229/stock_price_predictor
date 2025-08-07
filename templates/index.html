@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cutting-Edge Stock AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-800 p-6">
+    <div class="max-w-4xl mx-auto space-y-6">
+      <h1 class="text-3xl font-bold text-center">
+        📈 Live Stock Predictor & Chat
+      </h1>
+
+      <!-- Stock selector -->
+      <div class="flex justify-center space-x-2">
+        <select id="symbolSelect" class="border p-2 rounded">
+          <option>AAPL</option>
+          <option>MSFT</option>
+          <option>GOOG</option>
+          <option>TSLA</option>
+          <option>AMZN</option>
+        </select>
+        <button
+          id="predictBtn"
+          class="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Predict
+        </button>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 class="font-semibold mb-2">Historical & Forecast</h2>
+          <canvas id="predChart" class="bg-white p-4 rounded shadow"></canvas>
+          <p id="recText" class="mt-2 font-medium"></p>
+        </div>
+        <div>
+          <h2 class="font-semibold mb-2">Live Price (updates every 10s)</h2>
+          <canvas id="liveChart" class="bg-white p-4 rounded shadow"></canvas>
+          <p id="livePriceText" class="mt-2 font-medium"></p>
+        </div>
+      </div>
+
+      <!-- Chat interface -->
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-semibold mb-2">Chat with the Stock 🤖</h2>
+        <div
+          id="chatWindow"
+          class="h-48 overflow-y-auto border p-2 rounded mb-2"
+        ></div>
+        <div class="flex space-x-2">
+          <input
+            id="chatInput"
+            type="text"
+            placeholder="Ask the stock..."
+            class="flex-1 border p-2 rounded"
+          />
+          <button
+            id="sendChat"
+            class="bg-green-600 text-white px-4 py-2 rounded"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
