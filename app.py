@@ -89,6 +89,7 @@ def predict():
         f"  predictions: [{{date: 'YYYY-MM-DD', predicted_close: float}}, ...],\n"
         f"  recommendation: one of 'Buy', 'Hold', or 'Sell'\n"
         f"Do not use the word json in the output.'\n"
+        f"Do not use quotes in the output.'\n"
     )
     raw_output = agent.run(input=prompt)
     print(raw_output)
