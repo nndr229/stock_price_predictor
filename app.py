@@ -18,21 +18,22 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "replace-with-your-own-secret")
+app.secret_key = os.getenv(
+    "FLASK_SECRET_KEY", "replace-withasd23rssur-own-secret")
 
 # Alpaca
 ALPACA_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET = os.getenv("ALPACA_SECRET_KEY")
 APCA_API_BASE = os.getenv(
     "APCA_API_BASE_URL", "https://paper-api.alpaca.markets")
-# "iex" for free, "sip" for paid
+# "iex" (free) or "sip" (paid)
 ALPACA_DATA_FEED = os.getenv("ALPACA_DATA_FEED", "iex").lower()
 
 alpaca = tradeapi.REST(ALPACA_KEY, ALPACA_SECRET,
                        APCA_API_BASE, api_version='v2')
 
 # LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro  ", temperature=0.2)
 
 # -----------
 # Utilities
@@ -40,10 +41,7 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
 
 
 def rate_limit(endpoint: str, max_calls: int = 2, period: int = 60) -> bool:
-    """
-    Returns False if the user has already made `max_calls` in the last `period` seconds.
-    Otherwise records the call and returns True.
-    """
+    """Simple session-based rate limit."""
     now = datetime.utcnow().timestamp()
     key = f"rl_{endpoint}"
     timestamps = session.get(key, [])
@@ -62,11 +60,17 @@ def _session_key(symbol: str) -> str:
 
 
 def _ts_to_datestr(ts) -> str:
-    # ts could be pandas.Timestamp or datetime; normalize
     try:
         return ts.strftime("%Y-%m-%d")
     except Exception:
         return str(ts)[:10]
+
+
+def _ts_to_isostr(ts) -> str:
+    try:
+        return ts.isoformat()
+    except Exception:
+        return str(ts)
 
 
 # -------------------------
@@ -77,8 +81,7 @@ EXCLUDE_TOKENS = {"SYMBOL", "DAYS"}
 
 def _clean_ticker(s: str) -> str:
     s = (s or "").strip().upper()
-    # keep only letters/digits/.- and trim length
-    s = re.sub(r"[^A-Z0-9.\-]", "", s)
+    s = re.sub(r"[^A-Z0-9.\-]", "", s)  # keep sane ticker chars
     return s[:10]
 
 
@@ -95,11 +98,11 @@ def _parse_symbol_days(*args, **kwargs):
     if isinstance(raw, str) and raw.strip():
         return _clean_ticker(raw), days
 
-    # otherwise, inspect first positional arg (LLM may shove everything there)
+    # otherwise inspect first positional arg (LLMs shove everything here sometimes)
     raw = str(args[0]) if args else ""
     u = raw.upper()
 
-    # key=value pattern
+    # key=value like SYMBOL='AAPL'
     m = re.search(r"(?:SYMBOL|TICKER)\s*[:=]\s*['\"]?([A-Z0-9.\-]{1,10})", u)
     if m:
         return _clean_ticker(m.group(1)), days
@@ -114,7 +117,7 @@ def _parse_symbol_days(*args, **kwargs):
         if tok not in EXCLUDE_TOKENS:
             return _clean_ticker(tok), days
 
-    # fallback: use raw
+    # fallback
     return _clean_ticker(raw), days
 
 # -----------------------
@@ -127,37 +130,8 @@ def _safe_latest_trade(symbol: str):
         lt = alpaca.get_latest_trade(symbol, feed=ALPACA_DATA_FEED)
         return {
             "price": float(lt.price),
-            "timestamp": getattr(lt, "timestamp", None),
-            "source": "latest_trade"
-        }
-    except APIError as e:
-        if "no trade found" in str(e).lower():
-            return None
-        raise
-
-
-def _ts_to_datestr(ts) -> str:
-    # ts could be pandas.Timestamp or datetime
-    try:
-        return ts.strftime("%Y-%m-%d")
-    except Exception:
-        return str(ts)[:10]
-
-
-def _ts_to_isostr(ts) -> str:
-    try:
-        return ts.isoformat()
-    except Exception:
-        return str(ts)
-
-
-def _safe_latest_trade(symbol: str):
-    try:
-        lt = alpaca.get_latest_trade(symbol, feed=ALPACA_DATA_FEED)
-        return {
-            "price": float(lt.price),
             "timestamp": _ts_to_isostr(getattr(lt, "timestamp", None)),
-            "source": "latest_trade"
+            "source": "latest_trade",
         }
     except APIError as e:
         if "no trade found" in str(e).lower():
@@ -166,9 +140,19 @@ def _safe_latest_trade(symbol: str):
 
 
 def build_market_context(symbol: str, days: int = 100) -> dict:
+    """Fetch last N daily closes + latest trade (IEX by default), stash in session."""
     symbol = symbol.upper()
+
+    # Optional: validate asset exists/tradable
+    try:
+        asset = alpaca.get_asset(symbol)
+        if hasattr(asset, "tradable") and not asset.tradable:
+            pass
+    except Exception:
+        pass
+
     end = datetime.utcnow()
-    start = end - timedelta(days=days * 2)
+    start = end - timedelta(days=days * 2)  # pad for weekends/holidays
 
     bars = alpaca.get_bars(
         symbol,
@@ -186,7 +170,6 @@ def build_market_context(symbol: str, days: int = 100) -> dict:
         if dt is None:
             continue
         closes.append({"date": _ts_to_datestr(dt), "close": float(b.c)})
-
     closes = sorted(closes, key=lambda x: x["date"])[:days]
 
     latest = _safe_latest_trade(symbol)
@@ -195,7 +178,7 @@ def build_market_context(symbol: str, days: int = 100) -> dict:
             latest = {
                 "price": float(closes[-1]["close"]),
                 "timestamp": closes[-1]["date"],  # already string
-                "source": "last_close_fallback"
+                "source": "last_close_fallback",
             }
         else:
             latest = {"price": None, "timestamp": None, "source": "none"}
@@ -209,6 +192,10 @@ def build_market_context(symbol: str, days: int = 100) -> dict:
     }
     session[_session_key(symbol)] = ctx
     return ctx
+
+# --------------
+# Tool for Agent
+# --------------
 
 
 def fetch_stock_data(*args, **kwargs) -> str:
@@ -231,7 +218,7 @@ tools = [
     Tool(
         name="fetch_stock_data",
         func=fetch_stock_data,
-        description="Fetch last N daily closes and latest trade. Args accepted: symbol (str), days (int)."
+        description="Fetch last N daily closes and latest trade. Args: symbol (str), days (int)."
     )
 ]
 
@@ -250,7 +237,6 @@ agent = initialize_agent(
 
 @app.route("/")
 def index():
-    # Provide your own templates/index.html as needed
     return render_template("index.html")
 
 
@@ -259,7 +245,7 @@ def predict():
     if not rate_limit("predict"):
         return jsonify(error="Rate limit exceeded: max 2 predictions per minute"), 429
 
-    symbol = request.json.get("symbol", "AAPL").upper()
+    symbol = (request.json or {}).get("symbol", "AAPL").upper()
 
     prompt = (
         f"You are a senior financial market forecaster working strictly from live data. "
@@ -271,7 +257,7 @@ def predict():
     )
 
     raw_output = agent.run(input=prompt)
-    print(raw_output)
+
     # Extract final JSON object if model added text
     match = re.search(r"\{.*\}\s*$", raw_output, flags=re.S)
     payload = match.group(0) if match else raw_output.strip()
@@ -288,7 +274,10 @@ def predict():
         "context": session.get(_session_key(symbol)),
         "result": result
     }
-    return jsonify(symbol=symbol, **result)
+
+    # Include feed in response so UI can display it
+    feed = session.get(_session_key(symbol), {}).get("feed", ALPACA_DATA_FEED)
+    return jsonify(symbol=symbol, feed=feed, **result)
 
 
 @app.route("/chat", methods=["POST"])
@@ -332,11 +321,11 @@ def live_price():
     try:
         lt = alpaca.get_latest_trade(symbol, feed=ALPACA_DATA_FEED)
         price = float(lt.price)
-        ts = getattr(lt, "timestamp", None)
-        return jsonify(symbol=symbol, price=price, timestamp=ts, feed=ALPACA_DATA_FEED)
+        ts = _ts_to_isostr(getattr(lt, "timestamp", None))
+        return jsonify(symbol=symbol, price=price, timestamp=ts, feed=ALPACA_DATA_FEED, source="latest_trade")
     except APIError as e:
         if "no trade found" in str(e).lower():
-            # Fallback to last close if available in session
+            # Fallback to last close if available
             ctx = session.get(_session_key(symbol)) or {}
             closes = ctx.get("closes") or []
             if closes:
@@ -347,7 +336,6 @@ def live_price():
                     feed=ALPACA_DATA_FEED,
                     source="last_close_fallback"
                 ), 206
-        # Unknown error
         return jsonify(error=str(e)), 502
 
 
@@ -355,5 +343,4 @@ def live_price():
 # Entrypoint
 # -----------
 if __name__ == "__main__":
-    # For production, use a proper WSGI server (gunicorn/uvicorn) and set DEBUG via env.
     app.run(debug=True)
