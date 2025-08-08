@@ -24,7 +24,7 @@ alpaca = tradeapi.REST(ALPACA_KEY, ALPACA_SECRET,
                        APCA_API_BASE, api_version='v2')
 
 # — Gemini LLM setup —
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
 
 
 def rate_limit(endpoint: str, max_calls: int = 2, period: int = 60) -> bool:
@@ -89,12 +89,12 @@ def predict():
         f"  predictions: [{{date: 'YYYY-MM-DD', predicted_close: float}}, ...],\n"
         f"  recommendation: one of 'Buy', 'Hold', or 'Sell'\n"
         f"Do not use the word json in the output.'\n"
-        f"Do not use quotes in the output.'\n"
     )
     raw_output = agent.run(input=prompt)
     print(raw_output)
     try:
-        result = json.loads(raw_output)
+        result = json.loads(raw_output[3:len(raw_output)-3])
+        print(result)
     except:
         result = {"predictions": [], "recommendation": "Unknown",
                   "raw_output": raw_output.strip()}
@@ -112,7 +112,7 @@ def chat():
     question = data.get("question", "")
     messages = [
         ("system",
-         f"You are a financial stock analyst that has knowledge about {symbol} . You just recommended based on dummy data : '{recommendation}'."),
+         f"You are a financial analyst who has made a prediction about the {symbol} stock itself. You just recommended on some dummy data: '{recommendation}'."),
         ("human", question)
     ]
     resp = llm.invoke(messages)
