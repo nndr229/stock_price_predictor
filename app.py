@@ -33,7 +33,7 @@ alpaca = tradeapi.REST(ALPACA_KEY, ALPACA_SECRET,
                        APCA_API_BASE, api_version='v2')
 
 # LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro  ", temperature=0.2)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
 
 # -----------
 # Utilities
