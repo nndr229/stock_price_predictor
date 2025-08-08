@@ -303,7 +303,7 @@ def chat():
 
     messages = [
         ("system",
-         "You are a financial analyst. Use ONLY the provided context. "
+         "You are a financial analyst analysing mock data. Use ONLY the provided context. "
          f"symbol={symbol}; feed={ctx.get('feed')}; "
          f"latest_trade_price={ctx.get('latest_trade', {}).get('price')}; "
          f"last_close={ctx.get('closes', [{}])[-1].get('close') if ctx.get('closes') else None}; "
