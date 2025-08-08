@@ -307,8 +307,7 @@ def chat():
          f"symbol={symbol}; feed={ctx.get('feed')}; "
          f"latest_trade_price={ctx.get('latest_trade', {}).get('price')}; "
          f"last_close={ctx.get('closes', [{}])[-1].get('close') if ctx.get('closes') else None}; "
-         f"prior_recommendation='{prior_reco}'. "
-         "If something is unknown, say you don't know."),
+         f"prior_recommendation='{prior_reco}'."),
         ("human", question)
     ]
     resp = llm.invoke(messages)
